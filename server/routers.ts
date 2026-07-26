@@ -5,12 +5,68 @@ import { publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import axios from "axios";
 
-const MOOD_DESCRIPTIONS: Record<string, string> = {
-  sad: "우울하고 감성적인",
-  excited: "신나고 활기찬",
-  happy: "즐겁고 밝은",
-  calm: "차분하고 평온한",
-  excited_romantic: "설레고 로맨틱한",
+// 감정별 곡 데이터베이스 (완전 무료, 외부 API 불필요)
+const MOOD_SONGS: Record<string, Array<{ title: string; artist: string }>> = {
+  sad: [
+    { title: "Someone Like You", artist: "Adele" },
+    { title: "The Night We Met", artist: "Lord Huron" },
+    { title: "Skinny Love", artist: "Bon Iver" },
+    { title: "Hurt", artist: "Johnny Cash" },
+    { title: "Black", artist: "Pearl Jam" },
+    { title: "Tears in Heaven", artist: "Eric Clapton" },
+    { title: "Nutshell", artist: "Alice in Chains" },
+    { title: "Creep", artist: "Radiohead" },
+    { title: "Mad World", artist: "Gary Jules" },
+    { title: "Between the Bars", artist: "Elliott Smith" },
+  ],
+  excited: [
+    { title: "Uptown Funk", artist: "Mark Ronson ft. Bruno Mars" },
+    { title: "Shut Up and Dance", artist: "Walk the Moon" },
+    { title: "Don't Stop Me Now", artist: "Queen" },
+    { title: "Walking on Sunshine", artist: "Katrina & The Waves" },
+    { title: "Good as Hell", artist: "Lizzo" },
+    { title: "Levitating", artist: "Dua Lipa" },
+    { title: "Blinding Lights", artist: "The Weeknd" },
+    { title: "Dynamite", artist: "BTS" },
+    { title: "Pump It Up", artist: "Endor" },
+    { title: "Titanium", artist: "David Guetta ft. Sia" },
+  ],
+  happy: [
+    { title: "Walking on Sunshine", artist: "Katrina & The Waves" },
+    { title: "Good as Hell", artist: "Lizzo" },
+    { title: "Don't Stop Me Now", artist: "Queen" },
+    { title: "Sunshine", artist: "Fleetwood Mac" },
+    { title: "Three Little Birds", artist: "Bob Marley" },
+    { title: "Good Day", artist: "Nappy Roots" },
+    { title: "Here Comes the Sun", artist: "The Beatles" },
+    { title: "Walking on Air", artist: "Katy Perry" },
+    { title: "Lovely Day", artist: "Bill Withers" },
+    { title: "I'm Yours", artist: "Jason Mraz" },
+  ],
+  calm: [
+    { title: "Weightless", artist: "Marconi Union" },
+    { title: "Clair de Lune", artist: "Claude Debussy" },
+    { title: "Nuvole Bianche", artist: "Ludovico Einaudi" },
+    { title: "Gymnopédie No. 1", artist: "Erik Satie" },
+    { title: "River Flows in You", artist: "Yiruma" },
+    { title: "Peaceful Piano", artist: "Various Artists" },
+    { title: "Breathe", artist: "The Prodigy" },
+    { title: "Ambient 1: Music for Airports", artist: "Brian Eno" },
+    { title: "Meditation", artist: "Enya" },
+    { title: "Holocene", artist: "Bon Iver" },
+  ],
+  excited_romantic: [
+    { title: "Perfect", artist: "Ed Sheeran" },
+    { title: "All of Me", artist: "John Legend" },
+    { title: "Thinking Out Loud", artist: "Ed Sheeran" },
+    { title: "Make You Feel My Love", artist: "Adele" },
+    { title: "Kiss Me", artist: "Sixpence None the Richer" },
+    { title: "At Last", artist: "Etta James" },
+    { title: "Wonderful Tonight", artist: "Eric Clapton" },
+    { title: "The Way You Look Tonight", artist: "Frank Sinatra" },
+    { title: "Falling", artist: "Harry Styles" },
+    { title: "Lover", artist: "Taylor Swift" },
+  ],
 };
 
 // YouTube 검색 함수
@@ -37,61 +93,14 @@ async function searchYouTube(
   }
 }
 
-// ChatGPT에서 곡 추천받기
-async function getRecommendationFromChatGPT(
-  mood: string,
-  apiKey: string
-): Promise<{ title: string; artist: string } | null> {
-  try {
-    const moodDesc = MOOD_DESCRIPTIONS[mood] || "좋은";
-
-    const response = await axios.post(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        model: "gpt-3.5-turbo",
-        messages: [
-          {
-            role: "system",
-            content:
-              'You are a music recommendation expert. Recommend ONE popular song matching the given mood. Respond ONLY with JSON: {"title":"song name","artist":"artist name"}',
-          },
-          {
-            role: "user",
-            content: `분위기: ${moodDesc}. 이 분위기에 맞는 유명한 노래를 추천해주세요.`,
-          },
-        ],
-        temperature: 0.7,
-        max_tokens: 150,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        timeout: 10000,
-      }
-    );
-
-    const content = response.data.choices?.[0]?.message?.content?.trim();
-    if (!content) {
-      return null;
-    }
-
-    // JSON 파싱 시도
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return null;
-    }
-
-    const song = JSON.parse(jsonMatch[0]);
-    return {
-      title: song.title || "Unknown Title",
-      artist: song.artist || "Unknown Artist",
-    };
-  } catch (error) {
-    console.error("ChatGPT recommendation error:", error);
+// 로컬 곡 데이터베이스에서 랜덤 곡 선택
+function getRandomSongForMood(mood: string): { title: string; artist: string } | null {
+  const songs = MOOD_SONGS[mood];
+  if (!songs || songs.length === 0) {
     return null;
   }
+  const randomIndex = Math.floor(Math.random() * songs.length);
+  return songs[randomIndex];
 }
 
 export const appRouter = router({
@@ -112,20 +121,12 @@ export const appRouter = router({
       .input(z.object({ mood: z.string() }))
       .mutation(async ({ input }) => {
         try {
-          const openaiApiKey = process.env.OPENAI_API_KEY;
-          if (!openaiApiKey) {
-            return {
-              success: false,
-              error: "OpenAI API 키가 설정되지 않았습니다.",
-            };
-          }
-
-          // ChatGPT에서 곡 추천받기
-          const song = await getRecommendationFromChatGPT(input.mood, openaiApiKey);
+          // 로컬 데이터베이스에서 랜덤 곡 선택
+          const song = getRandomSongForMood(input.mood);
           if (!song) {
             return {
               success: false,
-              error: "ChatGPT에서 곡 추천을 받지 못했습니다.",
+              error: "해당 감정에 맞는 곡을 찾을 수 없습니다.",
             };
           }
 
