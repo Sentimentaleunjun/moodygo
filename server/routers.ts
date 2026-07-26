@@ -5,7 +5,7 @@ import { publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import axios from "axios";
 
-// 감정별 곡 데이터베이스 (완전 무료, 외부 API 불필요)
+// 감정별 곡 데이터베이스 (대폭 확장 - 각 감정별 20곡)
 const MOOD_SONGS: Record<string, Array<{ title: string; artist: string }>> = {
   sad: [
     { title: "Someone Like You", artist: "Adele" },
@@ -18,6 +18,16 @@ const MOOD_SONGS: Record<string, Array<{ title: string; artist: string }>> = {
     { title: "Creep", artist: "Radiohead" },
     { title: "Mad World", artist: "Gary Jules" },
     { title: "Between the Bars", artist: "Elliott Smith" },
+    { title: "Yesterday", artist: "The Beatles" },
+    { title: "No Surprises", artist: "Radiohead" },
+    { title: "Hurt So Good", artist: "John Mellencamp" },
+    { title: "Fade to Black", artist: "Metallica" },
+    { title: "Hallelujah", artist: "Leonard Cohen" },
+    { title: "The Scientist", artist: "Coldplay" },
+    { title: "Fix You", artist: "Coldplay" },
+    { title: "Chasing Cars", artist: "Snow Patrol" },
+    { title: "Iris", artist: "Goo Goo Dolls" },
+    { title: "Layla", artist: "Derek and the Dominos" },
   ],
   excited: [
     { title: "Uptown Funk", artist: "Mark Ronson ft. Bruno Mars" },
@@ -30,6 +40,16 @@ const MOOD_SONGS: Record<string, Array<{ title: string; artist: string }>> = {
     { title: "Dynamite", artist: "BTS" },
     { title: "Pump It Up", artist: "Endor" },
     { title: "Titanium", artist: "David Guetta ft. Sia" },
+    { title: "Crazy in Love", artist: "Beyoncé ft. Jay-Z" },
+    { title: "I Gotta Feeling", artist: "Black Eyed Peas" },
+    { title: "Firework", artist: "Katy Perry" },
+    { title: "We Will Rock You", artist: "Queen" },
+    { title: "Another One Bites the Dust", artist: "Queen" },
+    { title: "Bohemian Rhapsody", artist: "Queen" },
+    { title: "Jump", artist: "Van Halen" },
+    { title: "Eye of the Tiger", artist: "Survivor" },
+    { title: "Born to Be Wild", artist: "Steppenwolf" },
+    { title: "Rock and Roll All Nite", artist: "Kiss" },
   ],
   happy: [
     { title: "Walking on Sunshine", artist: "Katrina & The Waves" },
@@ -42,6 +62,16 @@ const MOOD_SONGS: Record<string, Array<{ title: string; artist: string }>> = {
     { title: "Walking on Air", artist: "Katy Perry" },
     { title: "Lovely Day", artist: "Bill Withers" },
     { title: "I'm Yours", artist: "Jason Mraz" },
+    { title: "Don't Worry Be Happy", artist: "Bobby McFerrin" },
+    { title: "Good Life", artist: "Kanye West ft. T-Pain" },
+    { title: "Walking on Clouds", artist: "Various" },
+    { title: "Smile", artist: "Nat King Cole" },
+    { title: "What a Wonderful World", artist: "Louis Armstrong" },
+    { title: "Sunny", artist: "Bobby Hebb" },
+    { title: "Feelin' Good", artist: "Nina Simone" },
+    { title: "Good as It Gets", artist: "Shawn Mendes" },
+    { title: "Happy", artist: "Pharrell Williams" },
+    { title: "Walking on Rainbows", artist: "Various" },
   ],
   calm: [
     { title: "Weightless", artist: "Marconi Union" },
@@ -54,6 +84,16 @@ const MOOD_SONGS: Record<string, Array<{ title: string; artist: string }>> = {
     { title: "Ambient 1: Music for Airports", artist: "Brian Eno" },
     { title: "Meditation", artist: "Enya" },
     { title: "Holocene", artist: "Bon Iver" },
+    { title: "Moonlight Sonata", artist: "Ludwig van Beethoven" },
+    { title: "Claire de Lune", artist: "Various" },
+    { title: "Spiegel im Spiegel", artist: "Arvo Pärt" },
+    { title: "The Four Seasons - Winter", artist: "Antonio Vivaldi" },
+    { title: "Prelude in E Minor", artist: "Frédéric Chopin" },
+    { title: "Nocturne No. 2", artist: "Frédéric Chopin" },
+    { title: "Canon in D", artist: "Johann Pachelbel" },
+    { title: "Fur Elise", artist: "Ludwig van Beethoven" },
+    { title: "Peaceful Waters", artist: "Various" },
+    { title: "Zen Garden", artist: "Various" },
   ],
   excited_romantic: [
     { title: "Perfect", artist: "Ed Sheeran" },
@@ -66,6 +106,16 @@ const MOOD_SONGS: Record<string, Array<{ title: string; artist: string }>> = {
     { title: "The Way You Look Tonight", artist: "Frank Sinatra" },
     { title: "Falling", artist: "Harry Styles" },
     { title: "Lover", artist: "Taylor Swift" },
+    { title: "Unchained Melody", artist: "The Righteous Brothers" },
+    { title: "Your Song", artist: "Elton John" },
+    { title: "Something", artist: "The Beatles" },
+    { title: "I Will Always Love You", artist: "Whitney Houston" },
+    { title: "Endless Love", artist: "Diana Ross & Lionel Richie" },
+    { title: "When a Man Loves a Woman", artist: "Percy Sledge" },
+    { title: "Stand By Me", artist: "Ben E. King" },
+    { title: "The Best Day of My Life", artist: "American Authors" },
+    { title: "Lucky", artist: "Jason Mraz & Colbie Caillat" },
+    { title: "Marry You", artist: "Bruno Mars" },
   ],
 };
 
