@@ -33,8 +33,8 @@ export default function Player() {
   // 감정 선택 시 새로운 곡 추천받기
   const handleMoodSelect = async (moodId: string) => {
     setSelectedMood(moodId);
-    setCurrentSongIndex(-1);
     setSongHistory([]);
+    setCurrentSongIndex(-1);
     await fetchRecommendation(moodId);
   };
 
@@ -49,8 +49,9 @@ export default function Player() {
           ...result.song,
           timestamp: Date.now(),
         };
-        setSongHistory([newSong]);
-        setCurrentSongIndex(0);
+        // 히스토리에 새 곡 추가
+        setSongHistory((prev) => [...prev, newSong]);
+        setCurrentSongIndex((prev) => prev + 1);
       } else {
         setError(result.error || "곡 추천에 실패했습니다.");
       }
@@ -162,6 +163,11 @@ export default function Player() {
                   <div className="text-sm text-accent-foreground/70">
                     {currentSong.artist}
                   </div>
+                  {songHistory.length > 0 && (
+                    <div className="text-xs text-accent-foreground/50 mt-2">
+                      {currentSongIndex + 1} / {songHistory.length}
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="text-sm text-accent-foreground/70">
@@ -213,6 +219,7 @@ export default function Player() {
                   variant="outline"
                   size="icon"
                   className="rounded-full"
+                  title="이전 곡"
                 >
                   <i className="fas fa-backward-step"></i>
                 </Button>
@@ -222,6 +229,7 @@ export default function Player() {
                   variant="outline"
                   size="icon"
                   className="rounded-full"
+                  title="다음 곡"
                 >
                   <i className="fas fa-forward-step"></i>
                 </Button>
