@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: moodygo
+    env: node
+    plan: free
+    buildCommand: pnpm install && pnpm build
+    startCommand: pnpm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: moodygo-db
+          property: connectionString
+      - key: DRIZZLE_DATABASE_URL
+        fromDatabase:
+          name: moodygo-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: OAUTH_SERVER_URL
+        value: https://api.manus.im
+      - key: VITE_OAUTH_PORTAL_URL
+        value: https://manus.im
+      - key: VITE_APP_TITLE
+        value: "MoodyGo! - AI 감정 기반 음악 추천 플레이어"
+      - key: OWNER_NAME
+        value: "은준 조"
+      - key: YOUTUBE_API_KEY
+        sync: false
+
+databases:
+  - name: moodygo-db
+    databaseName: moodygo
+    user: moodygo_user
+    plan: free
+    postgresMajorVersion: "15"
