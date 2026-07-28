@@ -5,6 +5,7 @@ import { publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { userPreferences } from "../drizzle/schema";
 import { getDb } from "./db";
+import axios from "axios";
 
 
 // ===============================
@@ -187,25 +188,6 @@ async function searchYouTube(
 }
 
 
-  try {
-
-
-    const response = await fetch(
-      "https://www.googleapis.com/youtube/v3/search?" +
-      new URLSearchParams({
-
-        part:"snippet",
-
-        q:query,
-
-        type:"video",
-
-        maxResults:"1",
-
-        key:apiKey,
-
-      })
-    );
 
 
     const data = await response.json();
