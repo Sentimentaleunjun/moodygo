@@ -119,9 +119,72 @@ async function searchYouTube(
   query: string,
   apiKey: string
 ): Promise<{
-  videoId:string;
-  thumbnail:string;
+  videoId: string;
+  thumbnail?: string;
+  title?: string;
+  channelTitle?: string;
 } | null> {
+
+  try {
+
+    const response =
+      await axios.get(
+        "https://www.googleapis.com/youtube/v3/search",
+        {
+          params: {
+            part: "snippet",
+            q: query,
+            type: "video",
+            maxResults: 1,
+            key: apiKey,
+          },
+        }
+      );
+
+
+    const item =
+      response.data.items?.[0];
+
+
+    if(!item){
+      return null;
+    }
+
+
+    return {
+
+      videoId:
+        item.id.videoId,
+
+
+      thumbnail:
+        item.snippet?.thumbnails?.high?.url
+        ??
+        item.snippet?.thumbnails?.medium?.url,
+
+
+      title:
+        item.snippet?.title,
+
+
+      channelTitle:
+        item.snippet?.channelTitle,
+
+    };
+
+
+  } catch(error){
+
+    console.error(
+      "YouTube search error",
+      error
+    );
+
+    return null;
+
+  }
+
+}
 
 
   try {
