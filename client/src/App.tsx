@@ -1,3 +1,4 @@
+import Setup from "./pages/Setup";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
@@ -30,6 +31,9 @@ function Router() {
         component={Player}
       />
 
+      <Route path="/setup" 
+        component={Setup} 
+        />
 
       <Route
         path="/404"
