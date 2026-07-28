@@ -4,56 +4,85 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import axios from "axios";
-
-import { musicHistory } from "../drizzle/schema";
+import { userPreferences } from "../drizzle/schema";
 import { getDb } from "./db";
 
-
-// 감정별 곡 데이터
 const MOOD_SONGS: Record<
   string,
-  Array<{ title: string; artist: string }>
+  Array<{
+    title: string;
+    artist: string;
+  }>
 > = {
   sad: [
-    { title: "Someone Like You", artist: "Adele" },
-    { title: "The Night We Met", artist: "Lord Huron" },
-    { title: "Fix You", artist: "Coldplay" },
-    { title: "이별택시", artist: "김연우" },
-    { title: "그대만 있다면", artist: "너드커넥션" },
+    {
+      title: "Someone Like You",
+      artist: "Adele",
+    },
+    {
+      title: "The Night We Met",
+      artist: "Lord Huron",
+    },
+    {
+      title: "Fix You",
+      artist: "Coldplay",
+    },
+    {
+      title: "The Scientist",
+      artist: "Coldplay",
+    },
   ],
 
   excited: [
-    { title: "Uptown Funk", artist: "Mark Ronson ft. Bruno Mars" },
-    { title: "Dynamite", artist: "BTS" },
-    { title: "Permission to Dance", artist: "BTS" },
-    { title: "Super Shy", artist: "NewJeans" },
-    { title: "나는 아픈 건 딱 질색이니까", artist: "(여자)아이들" },
+    {
+      title: "Uptown Funk",
+      artist: "Mark Ronson ft. Bruno Mars",
+    },
+    {
+      title: "Dynamite",
+      artist: "BTS",
+    },
+    {
+      title: "Blinding Lights",
+      artist: "The Weeknd",
+    },
   ],
 
   happy: [
-    { title: "Happy", artist: "Pharrell Williams" },
-    { title: "Good Life", artist: "Kanye West" },
-    { title: "Dolphin", artist: "오마이걸" },
-    { title: "여행", artist: "볼빨간사춘기" },
+    {
+      title: "Happy",
+      artist: "Pharrell Williams",
+    },
+    {
+      title: "Here Comes the Sun",
+      artist: "The Beatles",
+    },
   ],
 
   calm: [
-    { title: "Weightless", artist: "Marconi Union" },
-    { title: "River Flows in You", artist: "Yiruma" },
-    { title: "밤편지", artist: "아이유" },
-    { title: "사랑은 늘 도망가", artist: "임영웅" },
+    {
+      title: "River Flows in You",
+      artist: "Yiruma",
+    },
+    {
+      title: "Clair de Lune",
+      artist: "Claude Debussy",
+    },
   ],
 
   excited_romantic: [
-    { title: "Perfect", artist: "Ed Sheeran" },
-    { title: "All of Me", artist: "John Legend" },
-    { title: "사건의 지평선", artist: "윤하" },
-    { title: "첫 사랑니", artist: "f(x)" },
+    {
+      title: "Perfect",
+      artist: "Ed Sheeran",
+    },
+    {
+      title: "All of Me",
+      artist: "John Legend",
+    },
   ],
 };
 
 
-// YouTube 검색
 async function searchYouTube(
   query: string,
   apiKey: string
@@ -76,7 +105,6 @@ async function searchYouTube(
       response.data.items?.[0]?.id?.videoId ??
       null
     );
-
   } catch (error) {
     console.error(
       "YouTube search error:",
@@ -88,10 +116,7 @@ async function searchYouTube(
 }
 
 
-// 랜덤 추천
-function getRandomSongForMood(
-  mood: string
-) {
+function getRandomSongForMood(mood: string) {
   const songs = MOOD_SONGS[mood];
 
   if (!songs || songs.length === 0) {
@@ -99,12 +124,9 @@ function getRandomSongForMood(
   }
 
   return songs[
-    Math.floor(
-      Math.random() * songs.length
-    )
+    Math.floor(Math.random() * songs.length)
   ];
 }
-
 
 
 export const appRouter = router({
@@ -114,190 +136,193 @@ export const appRouter = router({
 
   auth: router({
 
-    me:
-      publicProcedure.query(
-        (opts) =>
-          opts.ctx.user
-      ),
+    me: publicProcedure.query(
+      (opts) => opts.ctx.user
+    ),
 
 
-    logout:
-      publicProcedure.mutation(
-        ({ ctx }) => {
+    logout: publicProcedure.mutation(
+      ({ ctx }) => {
 
-          const cookieOptions =
-            getSessionCookieOptions(
-              ctx.req
-            );
-
-
-          ctx.res.clearCookie(
-            COOKIE_NAME,
-            {
-              ...cookieOptions,
-              maxAge: -1,
-            }
+        const cookieOptions =
+          getSessionCookieOptions(
+            ctx.req
           );
 
 
-          return {
-            success: true,
-          };
-        }
-      ),
-  }),
+        ctx.res.clearCookie(
+          COOKIE_NAME,
+          {
+            ...cookieOptions,
+            maxAge: -1,
+          }
+        );
 
+
+        return {
+          success: true,
+        } as const;
+      }
+    ),
+
+  }),
 
 
   music: router({
 
-    recommend:
-      publicProcedure
-        .input(
-          z.object({
-            mood: z.string(),
+
+    savePreference: publicProcedure
+
+      .input(
+        z.object({
+          genres: z.array(z.string()),
+          moods: z.array(z.string()),
+        })
+      )
+
+
+      .mutation(async ({ ctx, input }) => {
+
+        if (!ctx.user) {
+          return {
+            success: false,
+            message: "guest",
+          };
+        }
+
+
+        const db = await getDb();
+
+
+        if (!db) {
+          return {
+            success: false,
+            message: "database unavailable",
+          };
+        }
+
+
+        await db
+          .insert(userPreferences)
+          .values({
+            userId: ctx.user.id,
+            genres: JSON.stringify(
+              input.genres
+            ),
+            moods: JSON.stringify(
+              input.moods
+            ),
           })
-        )
+          .onDuplicateKeyUpdate({
+            set: {
+              genres: JSON.stringify(
+                input.genres
+              ),
+              moods: JSON.stringify(
+                input.moods
+              ),
+            },
+          });
 
 
-        .mutation(
-          async ({
-            input,
-            ctx,
-          }) => {
+        return {
+          success: true,
+        };
 
-            try {
-
-              const song =
-                getRandomSongForMood(
-                  input.mood
-                );
+      }),
 
 
-              if (!song) {
-                return {
-                  success: false,
-                  error:
-                    "추천 가능한 곡이 없습니다.",
-                };
-              }
+    recommend: publicProcedure
+
+      .input(
+        z.object({
+          mood: z.string(),
+        })
+      )
 
 
+      .mutation(async ({ input }) => {
 
-              let youtubeId:
-                string | null = null;
+        try {
 
-
-              const apiKey =
-                process.env
-                  .YOUTUBE_API_KEY;
-
-
-
-              if (apiKey) {
-
-                youtubeId =
-                  await searchYouTube(
-                    `${song.title} ${song.artist}`,
-                    apiKey
-                  );
-
-              }
+          const song =
+            getRandomSongForMood(
+              input.mood
+            );
 
 
-
-              // 로그인 사용자만 기록 저장
-              if (ctx.user) {
-
-                const db =
-                  await getDb();
-
-
-                if (db) {
-
-                  await db
-                    .insert(
-                      musicHistory
-                    )
-                    .values({
-
-                      userId:
-                        ctx.user.id,
+          if (!song) {
+            return {
+              success: false,
+              error:
+                "해당 감정의 곡이 없습니다.",
+            };
+          }
 
 
-                      title:
-                        song.title,
+          let youtubeId:
+            string | null = null;
 
 
-                      artist:
-                        song.artist,
+          const apiKey =
+            process.env.YOUTUBE_API_KEY;
 
 
-                      youtubeId:
-                        youtubeId,
+          if (apiKey) {
 
-
-                      mood:
-                        input.mood,
-
-                    });
-
-                }
-              }
-
-
-
-              return {
-
-                success: true,
-
-
-                song: {
-
-                  title:
-                    song.title,
-
-
-                  artist:
-                    song.artist,
-
-
-                  youtubeId:
-                    youtubeId ??
-                    undefined,
-
-                },
-
-              };
-
-
-            } catch(error) {
-
-
-              console.error(
-                "Music recommendation error:",
-                error
+            youtubeId =
+              await searchYouTube(
+                `${song.title} ${song.artist}`,
+                apiKey
               );
 
-
-              return {
-
-                success:false,
-
-
-                error:
-                  error instanceof Error
-                    ? error.message
-                    : "추천 오류",
-
-              };
-
-            }
-
           }
-        ),
+
+
+          return {
+
+            success: true,
+
+            song: {
+
+              title:
+                song.title,
+
+              artist:
+                song.artist,
+
+              youtubeId:
+                youtubeId ?? undefined,
+
+            },
+
+          };
+
+
+        } catch(error) {
+
+          console.error(
+            "Music recommendation error:",
+            error
+          );
+
+
+          return {
+
+            success: false,
+
+            error:
+              "추천 중 오류 발생",
+
+          };
+
+        }
+
+      }),
+
 
   }),
+
 
 });
 
