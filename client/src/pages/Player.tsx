@@ -2,599 +2,565 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { useLocation } from "wouter";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
 
-
 interface RecommendedSong {
-
-  title:string;
-
-  artist:string;
-
-  youtubeId?:string;
-
-  timestamp:number;
-
+  title: string;
+  artist: string;
+  youtubeId?: string;
+  timestamp: number;
 }
-
-
 
 const MOODS = [
-
-{
- id:"sad",
- label:"우울함",
- emoji:"🌧️"
-},
-
-{
- id:"excited",
- label:"신남",
- emoji:"🔥"
-},
-
-{
- id:"happy",
- label:"즐거움",
- emoji:"✨"
-},
-
-{
- id:"calm",
- label:"차분함",
- emoji:"☕"
-},
-
-{
- id:"excited_romantic",
- label:"설렘",
- emoji:"🌸"
-},
-
+  { id: "sad", label: "우울함", emoji: "🌧️" },
+  { id: "excited", label: "신남", emoji: "🔥" },
+  { id: "happy", label: "즐거움", emoji: "✨" },
+  { id: "calm", label: "차분함", emoji: "☕" },
+  { id: "excited_romantic", label: "설렘", emoji: "🌸" },
 ];
 
+export default function Player() {
+  const [, setLocation] = useLocation();
 
+  const [selectedMood, setSelectedMood] = useState("sad");
+  const [songHistory, setSongHistory] = useState<RecommendedSong[]>([]);
+  const [currentSongIndex, setCurrentSongIndex] = useState(-1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-export default function Player(){
+  const recommendMutation =
+    trpc.music.recommend.useMutation();
 
-const [,setLocation]
-=useLocation();
 
+  useEffect(() => {
 
+    const saved =
+      localStorage.getItem("moodygo-history");
 
-const [selectedMood,setSelectedMood]
-=useState("happy");
+    if(saved){
+      try{
+        const data =
+          JSON.parse(saved);
 
+        setSongHistory(data);
 
+        if(data.length){
+          setCurrentSongIndex(
+            data.length - 1
+          );
+        }
 
-const [currentSong,setCurrentSong]
-=useState<RecommendedSong|null>(null);
+      }catch{}
+    }
 
+  }, []);
 
 
-const [history,setHistory]
-=useState<RecommendedSong[]>([]);
+  useEffect(() => {
 
+    localStorage.setItem(
+      "moodygo-history",
+      JSON.stringify(songHistory)
+    );
 
+  }, [songHistory]);
 
-const [loading,setLoading]
-=useState(false);
 
 
+  const fetchRecommendation =
+    async(mood:string)=>{
 
-const [error,setError]
-=useState("");
+      setIsLoading(true);
+      setError(null);
 
+      try{
 
+        const result =
+          await recommendMutation.mutateAsync({
+            mood
+          });
 
-const recommend =
-trpc.music.recommend.useMutation();
 
+        if(result.success && result.song){
 
+          const song:RecommendedSong = {
+            ...result.song,
+            timestamp:Date.now()
+          };
 
 
+          setSongHistory(prev=>[
+            ...prev,
+            song
+          ]);
 
-const getSong =
-async()=>{
 
+          setCurrentSongIndex(
+            songHistory.length
+          );
 
-setLoading(true);
 
-setError("");
+        }else{
 
+          setError(
+            result.error ??
+            "추천 실패"
+          );
 
+        }
 
-try{
 
+      }catch(e){
 
-const result =
-await recommend.mutateAsync({
+        setError(
+          e instanceof Error
+          ? e.message
+          : "오류 발생"
+        );
 
-mood:selectedMood
+      }finally{
 
-});
+        setIsLoading(false);
 
+      }
 
+    };
 
-if(
-result.success &&
-result.song
-){
 
 
-const song={
+  const handleMoodSelect =
+    async(id:string)=>{
 
-...result.song,
+      setSelectedMood(id);
 
-timestamp:
-Date.now(),
+      await fetchRecommendation(id);
 
-};
+    };
 
 
 
-setCurrentSong(song);
+  const currentSong =
+    currentSongIndex >= 0
+    ? songHistory[currentSongIndex]
+    : null;
 
 
-setHistory(prev=>[
-...prev,
-song
-]);
 
+  return (
+    <div className="min-h-screen w-full bg-background flex flex-col">
 
 
-}
+      <header className="flex justify-between items-center px-6 py-5 border-b border-border">
 
-else{
+        <div
+          onClick={()=>setLocation("/")}
+          className="text-2xl font-bold text-accent cursor-pointer"
+        >
+          🎧 MoodyGo!
+        </div>
 
 
-setError(
-result.error ??
-"추천 실패"
-);
+        <Button
+          variant="outline"
+          onClick={()=>setLocation("/")}
+        >
+          처음으로
+        </Button>
 
-}
+      </header>
 
 
-}catch(e){
 
+      <main className="flex-1 flex flex-col md:flex-row gap-8 p-6">
 
-setError(
-"오류 발생"
-);
 
+        <aside className="md:w-64">
 
-}
+          <h2 className="font-bold mb-4">
+            어떤 감정인가요?
+          </h2>
 
-finally{
 
-setLoading(false);
+          <div className="flex flex-wrap md:flex-col gap-3">
 
-}
+          {
+            MOODS.map(mood=>(
 
+              <button
+                key={mood.id}
+                disabled={isLoading}
+                onClick={()=>
+                  handleMoodSelect(mood.id)
+                }
+                className={`
+                  p-3 rounded-xl text-left
+                  transition-all
+                  ${
+                    selectedMood===mood.id
+                    ?
+                    "bg-accent text-accent-foreground"
+                    :
+                    "bg-card border border-border hover:border-accent"
+                  }
+                `}
+              >
 
-};
+                {mood.emoji} {mood.label}
 
+              </button>
 
+            ))
+          }
 
+          </div>
 
+        </aside>
+                <section className="flex-1 flex items-center justify-center">
 
-return (
+          <Card className="w-full max-w-3xl p-6 rounded-2xl">
 
-<div
-className="
-min-h-screen
-w-full
-bg-background
-flex
-flex-col
-"
->
+            <div className="flex justify-center mb-6">
 
+              <div className="bg-accent/10 text-accent px-4 py-2 rounded-full font-bold">
 
-<header
-className="
-flex
-justify-between
-items-center
-px-6
-md:px-12
-py-6
-border-b
-border-border
-"
->
+                {
+                  isLoading
+                  ?
+                  "추천 중..."
+                  :
+                  currentSong
+                  ?
+                  `🎵 ${currentSong.title}`
+                  :
+                  "감정을 선택하세요"
+                }
 
+              </div>
 
-<div
-className="
-text-2xl
-font-bold
-text-accent
-cursor-pointer
-"
-onClick={()=>
-setLocation("/")
-}
->
+            </div>
 
-🎧 MoodyGo!
 
-</div>
 
+            <div
+              className="
+              bg-gradient-to-br
+              from-foreground
+              to-foreground/80
+              rounded-xl
+              p-8
+              text-center
+              text-accent-foreground
+              min-h-40
+              flex
+              flex-col
+              justify-center
+              "
+            >
 
+              {
+                isLoading
+                ?
 
-<Button
+                <Spinner className="mx-auto w-8 h-8"/>
 
-variant="outline"
+                :
 
-onClick={()=>
-setLocation("/")
-}
+                error
 
->
+                ?
 
-처음으로
+                <p className="text-red-400">
+                  {error}
+                </p>
 
-</Button>
+                :
 
+                currentSong
 
-</header>
+                ?
 
+                <>
 
+                  <h1 className="text-3xl font-bold">
 
+                    {currentSong.title}
 
+                  </h1>
 
-<main
-className="
-flex-1
-flex
-flex-col
-md:flex-row
-gap-8
-p-6
-md:p-12
-"
->
 
+                  <p className="mt-2 opacity-70">
 
+                    {currentSong.artist}
 
+                  </p>
 
-<div
-className="
-w-full
-md:w-72
-flex
-flex-col
-gap-3
-"
->
+                </>
 
 
-<p
-className="
-font-bold
-text-muted-foreground
-"
->
+                :
 
-현재 기분
+                <p>
+                  당신의 감정을 선택하면
+                  음악을 추천합니다
+                </p>
 
-</p>
+              }
 
+            </div>
 
 
-{
-MOODS.map(
-(mood)=>(
 
+            {
+              currentSong?.youtubeId
+              &&
 
-<button
+              <div
+                className="
+                mt-6
+                aspect-video
+                rounded-xl
+                overflow-hidden
+                "
+              >
 
-key={mood.id}
+                <iframe
 
-onClick={()=>
-setSelectedMood(
-mood.id
-)
-}
+                  width="100%"
+                  height="100%"
 
-className={`
+                  src={
+                    `https://www.youtube.com/embed/${currentSong.youtubeId}?autoplay=1`
+                  }
 
-p-4
+                  title={
+                    currentSong.title
+                  }
 
-rounded-xl
+                  allow="
+                    autoplay;
+                    encrypted-media;
+                    picture-in-picture
+                  "
 
-border
+                  allowFullScreen
 
-text-left
+                  className="border-0"
 
-font-semibold
+                />
 
-transition-all
+              </div>
 
+            }
 
-${
-selectedMood===mood.id
 
-?
 
-"bg-accent text-accent-foreground"
+            {
+              currentSong &&
+              !currentSong.youtubeId
+              &&
 
-:
+              <div
+                className="
+                mt-6
+                aspect-video
+                rounded-xl
+                bg-muted
+                flex
+                items-center
+                justify-center
+                "
+              >
 
-"bg-card hover:border-accent"
+                YouTube 영상을 찾을 수 없습니다.
 
-}
+              </div>
 
-`}
+            }
 
->
 
 
-{mood.emoji}
 
-{" "}
+            <div
+              className="
+              mt-6
+              flex
+              gap-3
+              "
+            >
 
-{mood.label}
 
+              <Button
 
-</button>
+                className="
+                flex-1
+                bg-accent
+                text-accent-foreground
+                rounded-full
+                "
 
+                disabled={isLoading}
 
-)
+                onClick={()=>
+                  fetchRecommendation(
+                    selectedMood
+                  )
+                }
 
-)
-}
+              >
 
+                🔀 다른 곡 추천
 
-</div>
+              </Button>
 
 
 
+              <Button
 
+                variant="outline"
 
+                disabled={
+                  currentSongIndex <= 0
+                }
 
+                onClick={()=>{
 
-<Card
+                  setCurrentSongIndex(
+                    currentSongIndex-1
+                  );
 
-className="
-flex-1
-p-8
-rounded-2xl
-flex
-flex-col
-gap-6
-"
+                }}
 
->
+              >
 
+                ◀
 
-<div
-className="
-text-center
-"
->
+              </Button>
 
 
-<h1
-className="
-text-3xl
-font-bold
-"
->
 
-MoodyGo Player
+              <Button
 
-</h1>
+                variant="outline"
 
+                disabled={
+                  currentSongIndex >=
+                  songHistory.length-1
+                }
 
-<p
-className="
-text-muted-foreground
-"
->
+                onClick={()=>{
 
-감정 기반 AI 음악 추천
+                  setCurrentSongIndex(
+                    currentSongIndex+1
+                  );
 
-</p>
+                }}
 
+              >
 
-</div>
+                ▶
 
+              </Button>
 
 
+            </div>
 
 
 
 
-<div
 
-className="
-bg-gradient-to-br
-from-foreground
-to-foreground/80
+            {
+              songHistory.length > 0
+              &&
 
-rounded-xl
+              <div className="mt-8">
 
-min-h-40
+                <h3 className="font-bold mb-3">
 
-flex
+                  추천 기록
 
-items-center
+                </h3>
 
-justify-center
 
-text-center
+                <div className="space-y-2">
 
-p-6
 
-"
+                  {
+                    songHistory
+                    .slice()
+                    .reverse()
+                    .map((song,index)=>(
 
->
+                      <button
 
+                        key={song.timestamp}
 
-{
+                        onClick={()=>{
 
-loading ?
+                          setCurrentSongIndex(
+                            songHistory.length -
+                            1 -
+                            index
+                          );
 
-<Spinner />
+                        }}
 
-:
+                        className="
+                        w-full
+                        text-left
+                        p-3
+                        rounded-lg
+                        bg-muted
+                        hover:bg-accent/20
+                        transition
+                        "
 
-currentSong ?
+                      >
 
-<div>
+                        <div className="font-semibold">
 
-<h2
-className="
-text-2xl
-font-bold
-text-accent-foreground
-"
->
+                          {song.title}
 
-{currentSong.title}
+                        </div>
 
-</h2>
 
+                        <div
+                          className="
+                          text-sm
+                          text-muted-foreground
+                          "
+                        >
 
-<p
-className="
-text-accent-foreground/70
-"
->
+                          {song.artist}
 
-{currentSong.artist}
+                        </div>
 
-</p>
 
+                      </button>
 
-</div>
+                    ))
 
+                  }
 
-:
 
-<p
-className="
-text-accent-foreground/70
-"
->
+                </div>
 
-음악을 추천받아보세요
+              </div>
 
-</p>
+            }
 
 
-}
 
+          </Card>
 
-</div>
 
+        </section>
 
 
+      </main>
 
 
-
-
-{
-currentSong?.youtubeId &&
-
-<iframe
-
-className="
-w-full
-aspect-video
-rounded-xl
-"
-
-src={
-
-`https://www.youtube.com/embed/${currentSong.youtubeId}?autoplay=1`
-
-}
-
-title="youtube player"
-
-allow="
-autoplay;
-encrypted-media;
-"
-
- />
-
-}
-
-
-
-
-
-
-
-{
-error &&
-
-<p
-className="
-text-red-500
-text-center
-"
->
-
-{error}
-
-</p>
-
-}
-
-
-
-
-
-
-
-<Button
-
-onClick={getSong}
-
-disabled={loading}
-
-className="
-rounded-full
-bg-accent
-text-accent-foreground
-font-bold
-py-6
-"
-
->
-
-
-{loading
-?
-"추천 중..."
-:
-"다른 곡 추천받기"
-}
-
-
-</Button>
-
-
-
-
-</Card>
-
-
-
-</main>
-
-
-
-</div>
-
-
-);
+    </div>
+  );
 
 }
