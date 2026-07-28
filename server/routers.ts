@@ -7,7 +7,6 @@ import { userPreferences } from "../drizzle/schema";
 import { getDb } from "./db";
 import axios from "axios";
 
-
 // ===============================
 // Mood Music Database
 // ===============================
@@ -17,9 +16,7 @@ type Song = {
   artist: string;
 };
 
-
 const MOOD_SONGS: Record<string, Song[]> = {
-
   sad: [
     {
       title: "Someone Like You",
@@ -43,7 +40,6 @@ const MOOD_SONGS: Record<string, Song[]> = {
     },
   ],
 
-
   excited: [
     {
       title: "Uptown Funk",
@@ -63,7 +59,6 @@ const MOOD_SONGS: Record<string, Song[]> = {
     },
   ],
 
-
   happy: [
     {
       title: "Happy",
@@ -78,7 +73,6 @@ const MOOD_SONGS: Record<string, Song[]> = {
       artist: "Jason Mraz",
     },
   ],
-
 
   calm: [
     {
@@ -95,7 +89,6 @@ const MOOD_SONGS: Record<string, Song[]> = {
     },
   ],
 
-
   excited_romantic: [
     {
       title: "Perfect",
@@ -106,15 +99,11 @@ const MOOD_SONGS: Record<string, Song[]> = {
       artist: "John Legend",
     },
   ],
-
 };
-
-
 
 // ===============================
 // YouTube API
 // ===============================
-
 
 async function searchYouTube(
   query: string,
@@ -125,434 +114,192 @@ async function searchYouTube(
   title?: string;
   channelTitle?: string;
 } | null> {
-
   try {
-
-    const response =
-      await axios.get(
-        "https://www.googleapis.com/youtube/v3/search",
-        {
-          params: {
-            part: "snippet",
-            q: query,
-            type: "video",
-            maxResults: 1,
-            key: apiKey,
-          },
-        }
-      );
-
-
-    const item =
-      response.data.items?.[0];
-
-
-    if(!item){
-      return null;
-    }
-
-
-    return {
-
-      videoId:
-        item.id.videoId,
-
-
-      thumbnail:
-        item.snippet?.thumbnails?.high?.url
-        ??
-        item.snippet?.thumbnails?.medium?.url,
-
-
-      title:
-        item.snippet?.title,
-
-
-      channelTitle:
-        item.snippet?.channelTitle,
-
-    };
-
-
-  } catch(error){
-
-    console.error(
-      "YouTube search error",
-      error
+    const response = await axios.get(
+      "https://www.googleapis.com/youtube/v3/search",
+      {
+        params: {
+          part: "snippet",
+          q: query,
+          type: "video",
+          maxResults: 1,
+          key: apiKey,
+        },
+      }
     );
 
-    return null;
+    const item = response.data.items?.[0];
 
-  }
-
-}
-
-
-
-
-    const data = await response.json();
-
-
-    const item =
-      data.items?.[0];
-
-
-    if(!item?.id?.videoId){
+    if (!item) {
       return null;
     }
 
-
     return {
-
-      videoId:item.id.videoId,
+      videoId: item.id.videoId,
 
       thumbnail:
         item.snippet?.thumbnails?.high?.url ??
-        item.snippet?.thumbnails?.default?.url ??
-        "",
+        item.snippet?.thumbnails?.medium?.url,
 
+      title: item.snippet?.title,
+
+      channelTitle: item.snippet?.channelTitle,
     };
-
-
-  } catch(error){
-
-    console.error(
-      "Youtube search error",
-      error
-    );
+  } catch (error) {
+    console.error("YouTube search error", error);
 
     return null;
-
   }
-
 }
-
-
-
 
 // ===============================
 // Random Recommend
 // ===============================
 
+function getRandomSongForMood(mood: string): Song | null {
+  const songs = MOOD_SONGS[mood];
 
-function getRandomSongForMood(
-  mood:string
-):Song | null {
-
-
-  const songs =
-    MOOD_SONGS[mood];
-
-
-  if(!songs || songs.length===0){
-
+  if (!songs || songs.length === 0) {
     return null;
-
   }
 
-
-  return songs[
-    Math.floor(
-      Math.random()*songs.length
-    )
-  ];
-
+  return songs[Math.floor(Math.random() * songs.length)];
 }
-
-
 
 // ===============================
 // Router
 // ===============================
 
+export const appRouter = router({
+  system: systemRouter,
 
-export const appRouter =
-router({
+  auth: router({
+    me: publicProcedure.query(opts => opts.ctx.user),
 
-  system:
-    systemRouter,
+    logout: publicProcedure.mutation(({ ctx }) => {
+      const cookieOptions = getSessionCookieOptions(ctx.req);
 
+      ctx.res.clearCookie(COOKIE_NAME, {
+        ...cookieOptions,
+        maxAge: -1,
+      });
 
-  auth:
-  router({
-
-    me:
-      publicProcedure.query(
-        opts=>opts.ctx.user
-      ),
-
-
-    logout:
-    publicProcedure.mutation(
-      ({ctx})=>{
-
-
-        const cookieOptions =
-          getSessionCookieOptions(
-            ctx.req
-          );
-
-
-        ctx.res.clearCookie(
-          COOKIE_NAME,
-          {
-            ...cookieOptions,
-            maxAge:-1,
-          }
-        );
-
-
-        return {
-          success:true,
-        } as const;
-
-
-      }
-    ),
-
-
+      return {
+        success: true,
+      } as const;
+    }),
   }),
 
+  music: router({
+    savePreference: publicProcedure
+      .input(
+        z.object({
+          genres: z.array(z.string()),
 
+          moods: z.array(z.string()),
+        })
+      )
 
-  music:
-  router({
-
-
-    savePreference:
-    publicProcedure
-    .input(
-      z.object({
-
-        genres:
-          z.array(z.string()),
-
-        moods:
-          z.array(z.string()),
-
-      })
-    )
-
-    .mutation(
-      async({ctx,input})=>{
-
-        if(!ctx.user){
-
+      .mutation(async ({ ctx, input }) => {
+        if (!ctx.user) {
           return {
+            success: false,
 
-            success:false,
-
-            message:"guest",
-
+            message: "guest",
           };
-
         }
 
+        const db = await getDb();
 
-        const db =
-          await getDb();
-
-
-        if(!db){
-
+        if (!db) {
           return {
+            success: false,
 
-            success:false,
-
-            message:"database unavailable",
-
+            message: "database unavailable",
           };
-
         }
-
 
         await db
-        .insert(userPreferences)
-        .values({
+          .insert(userPreferences)
+          .values({
+            userId: ctx.user.id,
 
-          userId:
-            ctx.user.id,
+            genres: JSON.stringify(input.genres),
 
-          genres:
-            JSON.stringify(
-              input.genres
-            ),
+            moods: JSON.stringify(input.moods),
+          })
 
-          moods:
-            JSON.stringify(
-              input.moods
-            ),
+          .onDuplicateKeyUpdate({
+            set: {
+              genres: JSON.stringify(input.genres),
 
-        })
-
-        .onDuplicateKeyUpdate({
-
-          set:{
-
-            genres:
-              JSON.stringify(
-                input.genres
-              ),
-
-            moods:
-              JSON.stringify(
-                input.moods
-              ),
-
-          }
-
-        });
-
+              moods: JSON.stringify(input.moods),
+            },
+          });
 
         return {
-
-          success:true,
-
+          success: true,
         };
+      }),
+    recommend: publicProcedure
 
+      .input(
+        z.object({
+          mood: z.string(),
+        })
+      )
 
-      }
-    ),
-        recommend:
-    publicProcedure
+      .mutation(async ({ input }) => {
+        try {
+          const song = getRandomSongForMood(input.mood);
 
-    .input(
-      z.object({
-
-        mood:
-          z.string(),
-
-      })
-    )
-
-
-    .mutation(
-      async({input})=>{
-
-
-        try{
-
-
-          const song =
-            getRandomSongForMood(
-              input.mood
-            );
-
-
-
-          if(!song){
-
-
+          if (!song) {
             return {
+              success: false,
 
-              success:false,
-
-              error:
-                "해당 감정의 곡을 찾을 수 없습니다.",
-
+              error: "해당 감정의 곡을 찾을 수 없습니다.",
             };
-
-
           }
 
+          let youtube: {
+            videoId: string;
+            thumbnail?: string;
+          } | null = null;
 
+          const apiKey = process.env.YOUTUBE_API_KEY;
 
-          let youtube:
-          {
-            videoId:string;
-            thumbnail:string;
+          if (apiKey) {
+            youtube = await searchYouTube(
+              `${song.title} ${song.artist}`,
+
+              apiKey
+            );
           }
-          | null = null;
-
-
-
-          const apiKey =
-            process.env
-            .YOUTUBE_API_KEY;
-
-
-
-          if(apiKey){
-
-
-            youtube =
-              await searchYouTube(
-
-                `${song.title} ${song.artist}`,
-
-                apiKey
-
-              );
-
-
-          }
-
-
-
 
           return {
+            success: true,
 
+            song: {
+              title: song.title,
 
-            success:true,
+              artist: song.artist,
 
+              youtubeId: youtube?.videoId,
 
-            song:{
-
-
-              title:
-                song.title,
-
-
-              artist:
-                song.artist,
-
-
-              youtubeId:
-                youtube?.videoId,
-
-
-              thumbnail:
-                youtube?.thumbnail,
-
-
+              thumbnail: youtube?.thumbnail,
             },
-
-
           };
-
-
-
-        }catch(error){
-
-
-          console.error(
-            "Music recommend error:",
-            error
-          );
-
+        } catch (error) {
+          console.error("Music recommend error:", error);
 
           return {
+            success: false,
 
-
-            success:false,
-
-
-            error:
-              "추천 중 오류가 발생했습니다.",
-
-
+            error: "추천 중 오류가 발생했습니다.",
           };
-
-
         }
-
-
-      }
-    ),
-
-
-
+      }),
   }),
-
-
 });
+
+export type AppRouter = typeof appRouter;
