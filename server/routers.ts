@@ -6,6 +6,7 @@ import { z } from "zod";
 import axios from "axios";
 import { userPreferences } from "../drizzle/schema";
 import { getDb } from "./db";
+import { eq } from "drizzle-orm";
 
 const MOOD_SONGS: Record<
   string,
@@ -232,99 +233,299 @@ export const appRouter = router({
       }),
 
 
-    recommend: publicProcedure
+recommend:
 
-      .input(
-        z.object({
-          mood: z.string(),
-        })
-      )
+publicProcedure
 
-
-      .mutation(async ({ input }) => {
-
-        try {
-
-          const song =
-            getRandomSongForMood(
-              input.mood
-            );
+.input(
+  z.object({
+    mood:z.string(),
+  })
+)
 
 
-          if (!song) {
-            return {
-              success: false,
-              error:
-                "해당 감정의 곡이 없습니다.",
-            };
-          }
+.mutation(
+async({ctx,input})=>{
+
+try{
 
 
-          let youtubeId:
-            string | null = null;
+let preferredGenres:string[] = [];
 
 
-          const apiKey =
-            process.env.YOUTUBE_API_KEY;
+
+// 로그인 사용자 취향 가져오기
+
+if(ctx.user){
+
+const db =
+await getDb();
 
 
-          if (apiKey) {
 
-            youtubeId =
-              await searchYouTube(
-                `${song.title} ${song.artist}`,
-                apiKey
-              );
+if(db){
 
-          }
-
-
-          return {
-
-            success: true,
-
-            song: {
-
-              title:
-                song.title,
-
-              artist:
-                song.artist,
-
-              youtubeId:
-                youtubeId ?? undefined,
-
-            },
-
-          };
+const preference =
+await db
+.select()
+.from(userPreferences)
+.where(
+eq(
+userPreferences.userId,
+ctx.user.id
+)
+)
+.limit(1);
 
 
-        } catch(error) {
 
-          console.error(
-            "Music recommendation error:",
-            error
-          );
+if(preference.length > 0){
 
+preferredGenres =
+JSON.parse(
+preference[0].genres
+);
 
-          return {
+}
 
-            success: false,
+}
 
-            error:
-              "추천 중 오류 발생",
-
-          };
-
-        }
-
-      }),
+}
 
 
-  }),
+
+
+/*
+추천 데이터
+
+genre 추가해서
+점수 계산 가능하게 변경
+*/
+
+const candidates = Object.entries(
+MOOD_SONGS
+)
+.flatMap(
+([mood,songs])=>
+
+songs.map(song=>({
+
+...song,
+
+mood,
+
+score:0
+
+}))
+
+);
+
+
+
+
+// 감정 점수
+
+const moodFiltered =
+candidates.map(song=>{
+
+
+let score = 0;
+
+
+
+if(song.mood === input.mood){
+
+score += 10;
+
+}
+
+
+
+// 장르 매칭
+
+preferredGenres.forEach(
+genre=>{
+
+
+const artist =
+song.artist.toLowerCase();
+
+
+
+const title =
+song.title.toLowerCase();
+
+
+
+if(
+genre.toLowerCase()
+.includes("j-pop")
+){
+
+if(
+artist.includes("yoasobi") ||
+artist.includes("vaundy")
+){
+
+score +=5;
+
+}
+
+}
+
+
+
+if(
+genre.toLowerCase()
+.includes("pop")
+){
+
+score +=1;
+
+}
+
 
 
 });
+
+
+return {
+
+...song,
+
+score
+
+};
+
+
+});
+
+
+
+
+
+// 점수 높은 순 정렬
+
+moodFiltered.sort(
+(a,b)=>
+b.score-a.score
+);
+
+
+
+
+// 상위 후보 랜덤
+
+const topSongs =
+moodFiltered.slice(
+0,
+Math.min(
+5,
+moodFiltered.length
+)
+);
+
+
+
+const song =
+topSongs[
+Math.floor(
+Math.random()
+*
+topSongs.length
+)
+];
+
+
+
+
+
+if(!song){
+
+return {
+
+success:false,
+
+error:
+"추천 가능한 곡 없음"
+
+};
+
+}
+
+
+
+
+let youtubeId:
+string|null=null;
+
+
+
+const apiKey =
+process.env.YOUTUBE_API_KEY;
+
+
+
+if(apiKey){
+
+youtubeId =
+await searchYouTube(
+`${song.title} ${song.artist} official audio`,
+apiKey
+);
+
+}
+
+
+
+
+
+return {
+
+success:true,
+
+song:{
+
+title:
+song.title,
+
+artist:
+song.artist,
+
+youtubeId:
+youtubeId ?? undefined,
+
+}
+
+};
+
+
+
+}catch(error){
+
+
+console.error(
+"Recommendation error:",
+error
+);
+
+
+
+return {
+
+success:false,
+
+error:
+"추천 중 오류 발생"
+
+};
+
+
+}
+
+
+}
+),
 
 
 export type AppRouter =
