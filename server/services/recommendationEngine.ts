@@ -1,5 +1,6 @@
 import type { Mood } from "../data/mood";
 import type { Song } from "../data/songs";
+import { generateReason } from "./reasonGenerator";
 
 
 export interface EmotionContext {
@@ -14,6 +15,10 @@ export interface RecommendedSong extends Song {
 }
 
 
+/**
+ * 감정 일치 점수
+ * 최대 40점
+ */
 function calculateMoodScore(
   emotion: EmotionContext,
   song: Song
@@ -27,16 +32,24 @@ function calculateMoodScore(
 }
 
 
+/**
+ * 에너지 적합도 점수
+ * 최대 30점
+ *
+ * 사용자의 현재 에너지와
+ * 곡의 에너지 차이가 적을수록 높은 점수
+ */
 function calculateEnergyScore(
   emotion: EmotionContext,
   song: Song
 ): number {
 
-  const difference = Math.abs(
-    emotion.energy - song.energy
-  );
+  const difference =
+    Math.abs(
+      emotion.energy - song.energy
+    );
 
-  // 에너지 차이가 적을수록 높은 점수
+
   return Math.max(
     0,
     30 - difference / 3
@@ -44,19 +57,37 @@ function calculateEnergyScore(
 }
 
 
-function generateReason(
+/**
+ * 전체 추천 점수 계산
+ */
+function calculateScore(
   emotion: EmotionContext,
   song: Song
-): string {
+): number {
 
-  if(song.moods.includes(emotion.mood)){
-    return `현재 ${emotion.mood} 감정과 잘 맞는 분위기의 곡입니다.`;
-  }
+  const moodScore =
+    calculateMoodScore(
+      emotion,
+      song
+    );
 
-  return "현재 상태에서 새로운 감정 경험을 제공하는 곡입니다.";
+
+  const energyScore =
+    calculateEnergyScore(
+      emotion,
+      song
+    );
+
+
+  return Math.round(
+    moodScore + energyScore
+  );
 }
 
 
+/**
+ * 추천 엔진
+ */
 export function recommendSongs(
   emotion: EmotionContext,
   songs: Song[],
@@ -65,40 +96,33 @@ export function recommendSongs(
 
 
   return songs
+
     .map(song => {
 
-      const moodScore =
-        calculateMoodScore(
-          emotion,
-          song
-        );
-
-
-      const energyScore =
-        calculateEnergyScore(
-          emotion,
-          song
-        );
-
-
       const score =
-        moodScore +
-        energyScore;
+        calculateScore(
+          emotion,
+          song
+        );
 
 
       return {
         ...song,
-        score: Math.round(score),
-        reason: generateReason(
-          emotion,
-          song
-        )
+
+        score,
+
+        reason:
+          generateReason(
+            emotion.mood,
+            song
+          )
       };
 
     })
 
     .sort(
-      (a,b)=> b.score - a.score
+      (a, b) =>
+        b.score - a.score
     )
 
     .slice(0, limit);
