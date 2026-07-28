@@ -253,7 +253,7 @@ export default function Landing() {
         <Button
 
           onClick={() =>
-            setLocation("/setup")
+            setLocation("/app")
           }
 
           className="
