@@ -5,12 +5,12 @@ import {
   text,
   timestamp,
   varchar,
+  json,
 } from "drizzle-orm/mysql-core";
 
 
-
 /**
- * Users table
+ * Users
  */
 export const users = mysqlTable("users", {
 
@@ -50,18 +50,24 @@ export const users = mysqlTable("users", {
     .notNull(),
 
 
-  createdAt: timestamp("createdAt")
+  createdAt: timestamp(
+    "createdAt"
+  )
     .defaultNow()
     .notNull(),
 
 
-  updatedAt: timestamp("updatedAt")
+  updatedAt: timestamp(
+    "updatedAt"
+  )
     .defaultNow()
     .onUpdateNow()
     .notNull(),
 
 
-  lastSignedIn: timestamp("lastSignedIn")
+  lastSignedIn: timestamp(
+    "lastSignedIn"
+  )
     .defaultNow()
     .notNull(),
 
@@ -79,46 +85,56 @@ export type InsertUser =
 
 
 
-
 /**
- * User music preference
+ * User Music Preferences
  *
- * 로그인 사용자만 저장
+ * 사용자가 선택한:
+ * - 좋아하는 장르
+ * - 좋아하는 분위기
  *
- * guest:
- * - sessionStorage 사용
- * - DB 저장 X
+ * 저장
  */
-export const userPreferences = mysqlTable(
+export const userPreferences =
+mysqlTable(
   "user_preferences",
   {
+
 
     id: int("id")
       .autoincrement()
       .primaryKey(),
 
 
+
     userId: int("userId")
-      .notNull(),
+      .notNull()
+      .unique(),
+
 
 
     genres: text("genres")
       .notNull(),
 
 
+
     moods: text("moods")
       .notNull(),
 
 
-    createdAt: timestamp("createdAt")
-      .defaultNow()
-      .notNull(),
+
+    createdAt:
+      timestamp("createdAt")
+        .defaultNow()
+        .notNull(),
 
 
-    updatedAt: timestamp("updatedAt")
-      .defaultNow()
-      .onUpdateNow()
-      .notNull(),
+
+    updatedAt:
+      timestamp("updatedAt")
+        .defaultNow()
+        .onUpdateNow()
+        .notNull(),
+
 
   }
 );
