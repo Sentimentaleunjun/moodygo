@@ -3,303 +3,509 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
+
 import { userPreferences } from "../drizzle/schema";
 import { getDb } from "./db";
+
 import axios from "axios";
 
-// ===============================
-// Mood Music Database
-// ===============================
+import { songs } from "./data/songs";
 
-type Song = {
-  title: string;
-  artist: string;
-};
+import {
+  recommendSongs,
+  recommendByText,
+} from "./services/recommendationEngine";
 
-const MOOD_SONGS: Record<string, Song[]> = {
-  sad: [
-    {
-      title: "Someone Like You",
-      artist: "Adele",
-    },
-    {
-      title: "The Night We Met",
-      artist: "Lord Huron",
-    },
-    {
-      title: "Fix You",
-      artist: "Coldplay",
-    },
-    {
-      title: "The Scientist",
-      artist: "Coldplay",
-    },
-    {
-      title: "Creep",
-      artist: "Radiohead",
-    },
-  ],
+import {
+  analyzeEmotion
+} from "./services/emotionEngine";
 
-  excited: [
-    {
-      title: "Uptown Funk",
-      artist: "Mark Ronson ft. Bruno Mars",
-    },
-    {
-      title: "Dynamite",
-      artist: "BTS",
-    },
-    {
-      title: "Blinding Lights",
-      artist: "The Weeknd",
-    },
-    {
-      title: "Don't Stop Me Now",
-      artist: "Queen",
-    },
-  ],
+import {
+  generateReason
+} from "./services/reasonGenerator";
 
-  happy: [
-    {
-      title: "Happy",
-      artist: "Pharrell Williams",
-    },
-    {
-      title: "Here Comes the Sun",
-      artist: "The Beatles",
-    },
-    {
-      title: "I'm Yours",
-      artist: "Jason Mraz",
-    },
-  ],
 
-  calm: [
-    {
-      title: "River Flows in You",
-      artist: "Yiruma",
-    },
-    {
-      title: "Clair de Lune",
-      artist: "Claude Debussy",
-    },
-    {
-      title: "Moonlight Sonata",
-      artist: "Beethoven",
-    },
-  ],
 
-  excited_romantic: [
-    {
-      title: "Perfect",
-      artist: "Ed Sheeran",
-    },
-    {
-      title: "All of Me",
-      artist: "John Legend",
-    },
-  ],
-};
 
-// ===============================
-// YouTube API
-// ===============================
 
 async function searchYouTube(
-  query: string,
-  apiKey: string
-): Promise<{
-  videoId: string;
-  thumbnail?: string;
-  title?: string;
-  channelTitle?: string;
-} | null> {
-  try {
-    const response = await axios.get(
-      "https://www.googleapis.com/youtube/v3/search",
-      {
-        params: {
-          part: "snippet",
-          q: query,
-          type: "video",
-          maxResults: 1,
-          key: apiKey,
-        },
-      }
-    );
+  query:string,
+  apiKey:string
+){
 
-    const item = response.data.items?.[0];
 
-    if (!item) {
+  try{
+
+
+    const response =
+      await axios.get(
+
+        "https://www.googleapis.com/youtube/v3/search",
+
+        {
+
+          params:{
+
+            part:"snippet",
+
+            q:query,
+
+            type:"video",
+
+            maxResults:1,
+
+            key:apiKey
+
+          }
+
+        }
+
+      );
+
+
+
+    const item =
+      response.data.items?.[0];
+
+
+
+    if(!item)
       return null;
-    }
+
+
 
     return {
-      videoId: item.id.videoId,
+
+      youtubeId:
+        item.id.videoId,
+
 
       thumbnail:
-        item.snippet?.thumbnails?.high?.url ??
-        item.snippet?.thumbnails?.medium?.url,
+        item.snippet?.thumbnails?.high?.url
 
-      title: item.snippet?.title,
-
-      channelTitle: item.snippet?.channelTitle,
     };
-  } catch (error) {
-    console.error("YouTube search error", error);
+
+
+  }catch(error){
+
+    console.error(
+      "youtube error",
+      error
+    );
+
 
     return null;
-  }
-}
 
-// ===============================
-// Random Recommend
-// ===============================
-
-function getRandomSongForMood(mood: string): Song | null {
-  const songs = MOOD_SONGS[mood];
-
-  if (!songs || songs.length === 0) {
-    return null;
   }
 
-  return songs[Math.floor(Math.random() * songs.length)];
+
 }
 
-// ===============================
-// Router
-// ===============================
 
-export const appRouter = router({
-  system: systemRouter,
 
-  auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
 
-    logout: publicProcedure.mutation(({ ctx }) => {
-      const cookieOptions = getSessionCookieOptions(ctx.req);
 
-      ctx.res.clearCookie(COOKIE_NAME, {
-        ...cookieOptions,
-        maxAge: -1,
-      });
+export const appRouter =
+router({
+
+
+
+system:
+  systemRouter,
+
+
+
+
+
+auth:router({
+
+
+  me:
+
+  publicProcedure
+
+  .query(
+    ({ctx})=>
+      ctx.user
+  ),
+
+
+
+
+
+  logout:
+
+  publicProcedure
+
+  .mutation(
+
+    ({ctx})=>{
+
+
+      const cookieOptions =
+        getSessionCookieOptions(
+          ctx.req
+        );
+
+
+
+      ctx.res.clearCookie(
+
+        COOKIE_NAME,
+
+        {
+
+          ...cookieOptions,
+
+          maxAge:-1
+
+        }
+
+      );
+
+
 
       return {
-        success: true,
-      } as const;
-    }),
-  }),
 
-  music: router({
-    savePreference: publicProcedure
-      .input(
-        z.object({
-          genres: z.array(z.string()),
+        success:true
 
-          moods: z.array(z.string()),
-        })
-      )
+      };
 
-      .mutation(async ({ ctx, input }) => {
-        if (!ctx.user) {
-          return {
-            success: false,
 
-            message: "guest",
-          };
-        }
+    }
 
-        const db = await getDb();
+  )
 
-        if (!db) {
-          return {
-            success: false,
 
-            message: "database unavailable",
-          };
-        }
+}),
 
-        await db
-          .insert(userPreferences)
-          .values({
-            userId: ctx.user.id,
 
-            genres: JSON.stringify(input.genres),
 
-            moods: JSON.stringify(input.moods),
-          })
 
-          .onDuplicateKeyUpdate({
-            set: {
-              genres: JSON.stringify(input.genres),
 
-              moods: JSON.stringify(input.moods),
-            },
-          });
 
-        return {
-          success: true,
-        };
-      }),
-    recommend: publicProcedure
 
-      .input(
-        z.object({
-          mood: z.string(),
-        })
-      )
+music:router({
 
-      .mutation(async ({ input }) => {
-        try {
-          const song = getRandomSongForMood(input.mood);
 
-          if (!song) {
-            return {
-              success: false,
 
-              error: "해당 감정의 곡을 찾을 수 없습니다.",
-            };
-          }
 
-          let youtube: {
-            videoId: string;
-            thumbnail?: string;
-          } | null = null;
 
-          const apiKey = process.env.YOUTUBE_API_KEY;
 
-          if (apiKey) {
-            youtube = await searchYouTube(
-              `${song.title} ${song.artist}`,
+savePreference:
 
-              apiKey
-            );
-          }
 
-          return {
-            success: true,
+publicProcedure
 
-            song: {
-              title: song.title,
 
-              artist: song.artist,
+.input(
 
-              youtubeId: youtube?.videoId,
+z.object({
 
-              thumbnail: youtube?.thumbnail,
-            },
-          };
-        } catch (error) {
-          console.error("Music recommend error:", error);
+  genres:
+  z.array(
+    z.string()
+  ),
 
-          return {
-            success: false,
 
-            error: "추천 중 오류가 발생했습니다.",
-          };
-        }
-      }),
-  }),
+  moods:
+  z.array(
+    z.string()
+  )
+
+
+})
+
+)
+
+
+
+.mutation(
+
+async({ctx,input})=>{
+
+
+if(!ctx.user){
+
+return {
+
+success:false,
+
+message:"guest"
+
+};
+
+}
+
+
+
+const db =
+await getDb();
+
+
+
+if(!db){
+
+return {
+
+success:false,
+
+message:"database unavailable"
+
+};
+
+}
+
+
+
+
+
+await db
+
+.insert(userPreferences)
+
+.values({
+
+userId:
+ctx.user.id,
+
+
+genres:
+JSON.stringify(
+input.genres
+),
+
+
+moods:
+JSON.stringify(
+input.moods
+)
+
+
 });
 
-export type AppRouter = typeof appRouter;
+
+
+
+return {
+
+success:true
+
+};
+
+
+}
+
+),
+
+
+
+
+
+
+
+
+recommend:
+
+publicProcedure
+
+
+.input(
+
+z.object({
+
+
+  mood:
+
+  z.string()
+
+  .optional(),
+
+
+
+  energy:
+
+  z.number()
+
+  .min(0)
+
+  .max(100)
+
+  .optional(),
+
+
+
+  // 기존 테스트 호환
+
+  text:
+
+  z.string()
+
+  .optional()
+
+
+})
+
+)
+
+
+
+.mutation(
+
+async({input})=>{
+
+
+
+let song;
+
+
+
+if(input.text){
+
+
+  song =
+    recommendByText(
+      input.text
+    );
+
+
+}
+
+else{
+
+
+  song =
+    recommendSongs({
+
+      mood:
+        input.mood ??
+        "calm",
+
+
+      energy:
+        input.energy ??
+        50
+
+    });
+
+
+}
+
+
+
+
+
+const emotion =
+analyzeEmotion(
+
+  input.mood ??
+  input.text ??
+  ""
+
+);
+
+
+
+
+
+
+const reason =
+generateReason(
+
+  song,
+
+  emotion
+
+);
+
+
+
+
+
+
+let youtube =
+null;
+
+
+
+const apiKey =
+process.env.YOUTUBE_API_KEY;
+
+
+
+if(apiKey){
+
+
+youtube =
+await searchYouTube(
+
+`${song.title} ${song.artist}`,
+
+apiKey
+
+);
+
+
+}
+
+
+
+
+
+return {
+
+
+success:true,
+
+
+
+song:{
+
+
+  ...song,
+
+
+  reason,
+
+
+  ...(youtube ?? {})
+
+
+},
+
+
+
+emotion,
+
+
+
+youtube
+
+
+
+};
+
+
+
+}
+
+
+
+)
+
+
+
+})
+
+
+
+
+});
+
+
+
+
+
+export type AppRouter =
+typeof appRouter;

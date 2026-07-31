@@ -1,129 +1,249 @@
-import type { Mood } from "../data/mood";
-import type { Song } from "../data/songs";
-import { generateReason } from "./reasonGenerator";
+import { songs } from "../data/songs";
 
 
-export interface EmotionContext {
-  mood: Mood;
-  energy: number; // 0~100
+export type Mood =
+  | "calm"
+  | "energetic"
+  | "happy"
+  | "nostalgic"
+  | "romantic"
+  | "sad"
+  | "tired";
+
+
+export interface RecommendationInput {
+
+  mood?: Mood | string;
+
+  energy?: number;
+
 }
 
 
-export interface RecommendedSong extends Song {
-  score: number;
-  reason: string;
+
+export interface Song {
+
+  id:number;
+
+  title:string;
+
+  artist:string;
+
+  youtubeId:string;
+
+  thumbnail:string;
+
+  moods:Mood[];
+
+  energy:number;
+
+  genres:string[];
+
+  tags:string[];
+
+  score:number;
+
 }
 
 
-/**
- * 감정 일치 점수
- * 최대 40점
- */
-function calculateMoodScore(
-  emotion: EmotionContext,
-  song: Song
-): number {
 
-  if (song.moods.includes(emotion.mood)) {
-    return 40;
+
+function normalizeMood(
+  mood?:string
+):Mood {
+
+
+  switch(mood){
+
+    case "sad":
+    case "우울":
+    case "슬픔":
+      return "sad";
+
+
+    case "happy":
+    case "행복":
+      return "happy";
+
+
+    case "excited":
+    case "신남":
+    case "energetic":
+      return "energetic";
+
+
+    case "calm":
+    case "차분":
+    case "휴식":
+      return "calm";
+
+
+    case "romantic":
+    case "설렘":
+      return "romantic";
+
+
+    case "nostalgic":
+    case "그리움":
+      return "nostalgic";
+
+
+    default:
+      return "calm";
+
   }
 
-  return 0;
 }
 
 
-/**
- * 에너지 적합도 점수
- * 최대 30점
- *
- * 사용자의 현재 에너지와
- * 곡의 에너지 차이가 적을수록 높은 점수
- */
-function calculateEnergyScore(
-  emotion: EmotionContext,
-  song: Song
-): number {
-
-  const difference =
-    Math.abs(
-      emotion.energy - song.energy
-    );
 
 
-  return Math.max(
-    0,
-    30 - difference / 3
-  );
-}
-
-
-/**
- * 전체 추천 점수 계산
- */
-function calculateScore(
-  emotion: EmotionContext,
-  song: Song
-): number {
-
-  const moodScore =
-    calculateMoodScore(
-      emotion,
-      song
-    );
-
-
-  const energyScore =
-    calculateEnergyScore(
-      emotion,
-      song
-    );
-
-
-  return Math.round(
-    moodScore + energyScore
-  );
-}
-
-
-/**
- * 추천 엔진
- */
 export function recommendSongs(
-  emotion: EmotionContext,
-  songs: Song[],
-  limit = 5
-): RecommendedSong[] {
+
+  input: RecommendationInput
+
+):Song {
 
 
-  return songs
-
-    .map(song => {
-
-      const score =
-        calculateScore(
-          emotion,
-          song
-        );
+  const mood =
+    normalizeMood(
+      input.mood
+    );
 
 
-      return {
-        ...song,
+  const energy =
+    input.energy ?? 50;
 
-        score,
 
-        reason:
-          generateReason(
-            emotion.mood,
-            song
+
+  let candidates = songs.filter(
+    song =>
+      song.moods?.includes(mood)
+  );
+
+
+
+  if(candidates.length === 0){
+
+    candidates = songs;
+
+  }
+
+
+
+
+  candidates =
+    candidates
+    .map(song=>({
+
+      ...song,
+
+      score:
+
+        Math.max(
+
+          0,
+
+          100 -
+
+          Math.abs(
+            song.energy - energy
           )
-      };
 
-    })
+        )
+
+    }))
 
     .sort(
-      (a, b) =>
-        b.score - a.score
-    )
 
-    .slice(0, limit);
+      (a,b)=>
+
+        b.score-a.score
+
+    );
+
+
+
+
+
+  const result =
+    candidates[0];
+
+
+
+  return {
+
+    ...result,
+
+    score:
+      result.score ?? 80,
+
+  };
+
+}
+
+
+
+
+
+
+// 이전 text 추천 호환용
+export function recommendByText(
+
+  text:string
+
+):Song {
+
+
+  const lower =
+    text.toLowerCase();
+
+
+
+  let mood:Mood =
+    "calm";
+
+
+
+  if(
+    lower.includes("슬퍼") ||
+    lower.includes("힘들") ||
+    lower.includes("우울")
+  ){
+
+    mood="sad";
+
+  }
+
+
+  else if(
+    lower.includes("행복") ||
+    lower.includes("좋아")
+  ){
+
+    mood="happy";
+
+  }
+
+
+  else if(
+    lower.includes("신나") ||
+    lower.includes("에너지")
+  ){
+
+    mood="energetic";
+
+  }
+
+
+
+  return recommendSongs({
+
+    mood,
+
+    energy:50
+
+  });
+
+
 }
